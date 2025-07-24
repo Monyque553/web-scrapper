@@ -1,42 +1,55 @@
-const axios = require('axios');
-const cheerio = require('cheerio');
-const fs = require('fs');
+import axios from 'axios';
+import * as cheerio from 'cheerio';
+import fs from 'fs';
+import Produto from './produto.js';
 
+const seletorProduto = ".product-name";
+const seletorValor = ".saleInCents-value";
+const seletorDescricao = ".features--description";
+const seletorImagem = ".swiper-wrapper img";
 
-async function scrap(){
-    const response = await axios.get("https://www.netshoes.com.br/p/creatina-pura-monohidratada-po-525g-sem-sabor-ronnie-coleman-sem+sabor-X37-0020-289");
-    const $ = cheerio.load(response.data);
-    console.log($(".product-name").text().trim());
-    console.log($(".saleInCents-value").text().trim());
-    console.log($(".features--description").text().trim());
-    console.log($(".swiper-wrapper img").first().attr("src"));
-
-    const info = {
-        nome : $(".product-name").text().trim(),
-        valor : $(".saleInCents-value").text().trim(),
-        descrição : $(".features--description").text().trim()
-       
-    };
-
-    console.log(info)
-    //save_json(info);
-
-    
-    
+function lerUrlsDoArquivo(caminho) {
+    const conteudo = fs.readFileSync(caminho, 'utf-8');
+    return conteudo.split('\n').map(url => url.trim()).filter(url => url.length > 0);
 }
 
-function save_json(data){
-    const jsonData = JSON.stringify(data, null, 2);
+async function scrap(url) {
+    const response = await axios.get(url);
+    const $ = cheerio.load(response.data);
 
-    fs.writeFile('dados.json', jsonData, (err) => {
-    if (err) {
-        console.error('Erro ao salvar arquivo:', err);
-    } else {
-        console.log('Arquivo salvo com sucesso!');
+    return new Produto(
+        $(seletorProduto).text().trim(),
+        $(seletorValor).text().trim(),
+        $(seletorDescricao).text().trim(),
+        $(seletorImagem).first().attr("src")
+    ).getProduto();
+}
+
+async function main() {
+    const urls = lerUrlsDoArquivo('input.txt'); 
+    const produtos = [];
+
+    for (const url of urls) {
+        try {
+            const produto = await scrap(url);
+            produtos.push(produto);
+        } catch (err) {
+            console.error(`Erro ao processar ${url}:`, err.message);
+        }
     }
+
+    save_json(produtos);
+}
+
+function save_json(data) {
+    const jsonData = JSON.stringify(data, null, 2);
+    fs.writeFile('dados.json', jsonData, (err) => {
+        if (err) {
+            console.error('Erro ao salvar arquivo:', err);
+        } else {
+            console.log('Arquivo salvo com sucesso!');
+        }
     });
 }
 
-
- 
-scrap();
+main();
